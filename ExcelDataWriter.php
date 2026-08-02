@@ -120,10 +120,10 @@ class ExcelDataWriter extends BaseObject
         foreach ($this->columns as $column) {
             $this->endColumn = $i + 1;
             if (isset($column['header'])) {
-                $this->sheet->setCellValueByColumnAndRow($i, $this->j, $column['header']);
+                $this->sheet->setCellValue([$i, $this->j], $column['header']);
             }
             if (isset($column['headerStyles'])) {
-                $this->sheet->getStyleByColumnAndRow($i, $this->j)->applyFromArray($column['headerStyles']);
+                $this->sheet->getStyle([$i, $this->j])->applyFromArray($column['headerStyles']);
             }
 
             if (isset($column['width']) && $column['width'] !== 'autosize') {
@@ -201,7 +201,7 @@ class ExcelDataWriter extends BaseObject
     {
         // auto type
         if (!isset($config['type']) || $config['type'] === null) {
-            $this->sheet->setCellValueByColumnAndRow($column, $row, $value);
+            $this->sheet->setCellValue([$column, $row], $value);
         } elseif ($config['type'] === 'date') {
             $timestamp = false;
             if(is_int($value)){
@@ -226,18 +226,18 @@ class ExcelDataWriter extends BaseObject
             }
 
             $this->sheet
-                ->getStyleByColumnAndRow($column, $row)
+                ->getStyle([$column, $row])
                 ->getNumberFormat()
                 ->setFormatCode(NumberFormat::FORMAT_DATE_DATETIME);
 
 
-            $this->sheet->setCellValueByColumnAndRow($column, $row, Date::PHPToExcel($timestamp));
+            $this->sheet->setCellValue([$column, $row], Date::PHPToExcel($timestamp));
             if (!isset($config['styles']['numberformat']['code'])) {
                 $config['styles']['numberformat']['code'] = $this->defaultDateFormat;
             }
 
             $this->sheet
-                ->getStyleByColumnAndRow($column, $row)
+                ->getStyle([$column, $row])
                 ->getNumberFormat()
                 ->setFormatCode(NumberFormat::FORMAT_DATE_DDMMYYYY);
 
@@ -257,17 +257,17 @@ class ExcelDataWriter extends BaseObject
                 $label = '';
             }
 
-            $this->sheet->setCellValueByColumnAndRow($column, $row, $label);
+            $this->sheet->setCellValue([$column, $row], $label);
 
             if ($urlValid) {
-                $this->sheet->getCellByColumnAndRow($column, $row)->getHyperlink()->setUrl($value);
+                $this->sheet->getCell([$column, $row])->getHyperlink()->setUrl($value);
             }
         } else {
-            $this->sheet->setCellValueExplicitByColumnAndRow($column, $row, $value, $config['type']);
+            $this->sheet->setCellValueExplicit([$column, $row], $value, $config['type']);
         }
 
         if (isset($config['styles'])) {
-            $this->sheet->getStyleByColumnAndRow($column, $row)->applyFromArray($config['styles']);
+            $this->sheet->getStyle([$column, $row])->applyFromArray($config['styles']);
         }
 
         if (isset($config['format']['decimal'])) {
@@ -277,7 +277,7 @@ class ExcelDataWriter extends BaseObject
                 $numberFormat = '0.' . str_repeat('0',$config['format']['decimal']);
             }
             $this->sheet
-                ->getStyleByColumnAndRow($column, $row)
+                ->getStyle([$column, $row])
                 ->getNumberFormat()
                 ->setFormatCode($numberFormat);
         }
