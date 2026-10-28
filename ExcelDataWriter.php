@@ -168,7 +168,7 @@ class ExcelDataWriter extends BaseObject
         $i = $this->startColumn;
         foreach ($this->columns as $column) {
             if (isset($column['width']) && $column['width'] === 'autosize') {
-                $this->sheet->getColumnDimensionByColumn($this->j)->setAutoSize(true);
+                $this->sheet->getColumnDimensionByColumn($i)->setAutoSize(true);
             }
             // footer config
             $config = [];
@@ -202,6 +202,8 @@ class ExcelDataWriter extends BaseObject
         // auto type
         if (!isset($config['type']) || $config['type'] === null) {
             $this->sheet->setCellValue([$column, $row], $value);
+        } elseif ($config['type'] === 'date' && ($value === null || $value === '')) {
+            $this->sheet->setCellValue([$column, $row], null);
         } elseif ($config['type'] === 'date') {
             $timestamp = false;
             if(is_int($value)){
