@@ -8,9 +8,33 @@ namespace alexgx\phpexcel;
 class PhpExcel extends \yii\base\BaseObject
 {
     /**
+     * file extension => PhpSpreadsheet reader/writer type
+     */
+    public const EXTENSION_FORMATS = [
+        'ods' => 'Ods',
+        'xls' => 'Xls',
+        'xlsx' => 'Xlsx',
+        'csv' => 'Csv',
+        'pdf' => 'Pdf',
+        'html' => 'Html',
+    ];
+
+    /**
+     * PHPExcel era format names => PhpSpreadsheet types
+     */
+    public const LEGACY_FORMATS = [
+        'Excel2007' => 'Xlsx',
+        'Excel5' => 'Xls',
+        'OpenDocument' => 'Ods',
+        'CSV' => 'Csv',
+        'HTML' => 'Html',
+        'PDF' => 'Pdf',
+    ];
+
+    /**
      * @var string
      */
-    public $defaultFormat = 'Excel2007';
+    public $defaultFormat = 'Xlsx';
 
     /**
      * Creates new workbook
@@ -48,14 +72,33 @@ class PhpExcel extends \yii\base\BaseObject
         if ($format === null) {
             $format = $this->resolveFormat($filename);
         }
+        $format = $this->normalizeFormat($format);
 
-        $filename = $this->filterFilename($filename, $beautifyFileName);
+        $filename = $this->filterFilename($this->ensureExtension($filename, $format), $beautifyFileName);
         $writer = \PhpOffice\PhpSpreadsheet\IOFactory::createWriter($object, $format);
         ob_start();
         $writer->save('php://output');
         $content = ob_get_clean();
-        \Yii::$app->response->sendContentAsFile($content, $filename, $this->resolveMime($format));
+        \Yii::$app->response->sendContentAsFile($content, $filename, ['mimeType' => $this->resolveMime($format)]);
         \Yii::$app->end();
+    }
+
+    /**
+     * Saves the spreadsheet to a file on the server
+     * @param \PhpOffice\PhpSpreadsheet\Spreadsheet $object
+     * @param string $path file path, format is resolved from its extension, the extension is appended when missing
+     * @param string|null $format output format
+     * @return string saved file path
+     */
+    public function saveFile(\PhpOffice\PhpSpreadsheet\Spreadsheet $object, $path, $format = null)
+    {
+        if ($format === null) {
+            $format = $this->resolveFormat($path);
+        }
+        $format = $this->normalizeFormat($format);
+        $path = $this->ensureExtension($path, $format);
+        \PhpOffice\PhpSpreadsheet\IOFactory::createWriter($object, $format)->save($path);
+        return $path;
     }
 
     /**
@@ -89,13 +132,14 @@ class PhpExcel extends \yii\base\BaseObject
     protected function resolveMime($format)
     {
         $list = [
-            'CSV' => 'text/csv',
-            'HTML' => 'text/html',
-            'PDF' => 'application/pdf',
-            'OpenDocument' => 'application/vnd.oasis.opendocument.spreadsheet',
-            'Excel5' => 'application/vnd.ms-excel',
-            'Excel2007' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'Csv' => 'text/csv',
+            'Html' => 'text/html',
+            'Pdf' => 'application/pdf',
+            'Ods' => 'application/vnd.oasis.opendocument.spreadsheet',
+            'Xls' => 'application/vnd.ms-excel',
+            'Xlsx' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         ];
+        $format = $this->normalizeFormat($format);
         return isset($list[$format]) ? $list[$format] : 'application/octet-stream';
     }
 
@@ -107,17 +151,33 @@ class PhpExcel extends \yii\base\BaseObject
     protected function resolveFormat($filename)
     {
         // see IOFactory::createReaderForFile etc.
-        $list = [
-            'ods' => 'Ods',
-            'xls' => 'Xls',
-            'xlsx' => 'Xlsx',
-            'csv' => 'Csv',
-            'pdf' => 'Pdf',
-            'html' => 'Html',
-        ];
-        // TODO: check strtolower
-        $extension = pathinfo($filename, PATHINFO_EXTENSION);
-        return isset($list[$extension]) ? $list[$extension] : $this->defaultFormat;
+        $extension = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
+        return isset(self::EXTENSION_FORMATS[$extension]) ? self::EXTENSION_FORMATS[$extension] : $this->defaultFormat;
+    }
+
+    /**
+     * Maps PHPExcel era format names to PhpSpreadsheet types
+     * @param string $format
+     * @return string
+     */
+    protected function normalizeFormat($format)
+    {
+        return isset(self::LEGACY_FORMATS[$format]) ? self::LEGACY_FORMATS[$format] : $format;
+    }
+
+    /**
+     * Appends the format extension when the file name has no known spreadsheet extension
+     * @param string $filename
+     * @param string $format
+     * @return string
+     */
+    protected function ensureExtension($filename, $format)
+    {
+        $extension = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
+        if (isset(self::EXTENSION_FORMATS[$extension])) {
+            return $filename;
+        }
+        return $filename . '.' . strtolower($format);
     }
 
     /**
@@ -145,7 +205,7 @@ class PhpExcel extends \yii\base\BaseObject
         if ($beautify) $filename = $this->beautifyFilename($filename);
         // maximise filename length to 255 bytes http://serverfault.com/a/9548/44086
         $ext = pathinfo($filename, PATHINFO_EXTENSION);
-        $filename = mb_strcut(pathinfo($filename, PATHINFO_FILENAME), 0, 255 - ($ext ? strlen($ext) + 1 : 0), mb_detect_encoding($filename)) . ($ext ? '.' . $ext : '');
+        $filename = mb_strcut(pathinfo($filename, PATHINFO_FILENAME), 0, 255 - ($ext ? strlen($ext) + 1 : 0), mb_detect_encoding($filename) ?: null) . ($ext ? '.' . $ext : '');
         return $filename;
     }
 
@@ -172,7 +232,7 @@ class PhpExcel extends \yii\base\BaseObject
             '/\.{2,}/'
         ), '.', $filename);
         // lowercase for windows/unix interoperability http://support.microsoft.com/kb/100625
-        $filename = mb_strtolower($filename, mb_detect_encoding($filename));
+        $filename = mb_strtolower($filename, mb_detect_encoding($filename) ?: null);
         // ".file-name.-" becomes "file-name"
         $filename = trim($filename, '.-');
         return $filename;

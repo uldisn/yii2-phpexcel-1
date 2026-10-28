@@ -12,8 +12,8 @@
 		}
 	],
 	"require": {
-		"yiisoft/yii2": "*",
-		"phpoffice/phpspreadsheet": "*"
+		"yiisoft/yii2": "~2.0.14",
+		"phpoffice/phpspreadsheet": "^5.10"
 	},
 	"autoload": {
 		"psr-4": {
